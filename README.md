@@ -1,6 +1,6 @@
 # vendorwatch: continuous third-party & technology risk monitoring
 
-`vendorwatch` is a self-hosted, free tool in the spirit of Black Kite and similar TPRM products. You give it the vendors and technologies you depend on and **the versions you run**. It watches vulnerability databases, exploit sources and the news, and tells you when something **affects you**, how urgent it is, and **which version fixes it**.
+`vendorwatch` is a self-hosted, free tool in the spirit TPRM products. You give it the vendors and technologies you depend on and **the versions you run**. It watches vulnerability databases, exploit sources and the news, and tells you when something **affects you**, how urgent it is, and **which version fixes it**.
 
 Example: you watch FortiGate on FortiOS 7.4.2. A new FortiOS CVE lands, CISA adds it to KEV, and a PoC appears on GitHub. You get:
 
