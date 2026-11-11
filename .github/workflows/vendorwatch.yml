@@ -8,6 +8,13 @@
 #        NVD_API_KEY (recommended: much faster NVD queries)
 #   3. The findings database is kept between runs with the Actions cache, so you
 #      only get alerted about things that are NEW (or got worse).
+#   4. Optional - publish the dashboard to GitHub Pages:
+#        a. Settings -> Pages -> Build and deployment -> Source: "GitHub Actions"
+#        b. Settings -> Secrets and variables -> Actions -> Variables tab:
+#           add PUBLISH_PAGES = true
+#      WARNING: unless you are on GitHub Enterprise Cloud with private Pages,
+#      a Pages site is PUBLIC to the internet, even from a private repo. The
+#      dashboard lists your technologies, versions and unpatched CVEs.
 name: vendorwatch
 
 on:
@@ -23,6 +30,9 @@ on:
 concurrency:
   group: vendorwatch
   cancel-in-progress: false
+
+permissions:
+  contents: read
 
 jobs:
   scan:
@@ -77,3 +87,31 @@ jobs:
           name: vendor-risk-dashboard
           path: report.html
           retention-days: 30
+
+      - name: Prepare Pages site
+        if: always() && vars.PUBLISH_PAGES == 'true' && hashFiles('report.html') != ''
+        run: |
+          mkdir -p _site
+          cp report.html _site/index.html
+          printf 'User-agent: *\nDisallow: /\n' > _site/robots.txt
+          touch _site/.nojekyll
+
+      - name: Upload Pages artifact
+        if: always() && vars.PUBLISH_PAGES == 'true' && hashFiles('_site/index.html') != ''
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+  pages:
+    needs: scan
+    if: always() && vars.PUBLISH_PAGES == 'true' && needs.scan.result != 'cancelled'
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - id: deploy
+        uses: actions/deploy-pages@v4

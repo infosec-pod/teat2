@@ -106,6 +106,7 @@ vendorwatch report                      # regenerate report.html
 Pick one:
 
 - **GitHub Actions (no server):** `.github/workflows/vendorwatch.yml` runs every 4 hours. It keeps the findings DB in the Actions cache, sends alerts using repo secrets (`SLACK_WEBHOOK_URL`, `SMTP_*`, `NVD_API_KEY`, …) and uploads `report.html` as an artifact. Commit your `watchlist.yaml`; it contains no secrets.
+- **GitHub Pages dashboard:** the same workflow can publish `report.html` as a web page after every scan. In the repo, go to **Settings → Pages → Source: "GitHub Actions"**. Then add the repository **variable** `PUBLISH_PAGES` = `true` (Settings → Secrets and variables → Actions → Variables). The site URL appears in the workflow run summary. ⚠️ Unless you're on GitHub Enterprise Cloud with private Pages, **the site is public even if the repo is private**. It shows your products, versions and unpatched CVEs. The page asks search engines not to index it, but that doesn't stop anyone who has the link.
 - **cron:** `17 */4 * * * cd /opt/vendorwatch && python -m vendorwatch scan -q >> scan.log 2>&1`
 - **Long-running:** `python -m vendorwatch watch --every 4h` (systemd, tmux, a container…).
 

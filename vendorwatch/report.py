@@ -97,7 +97,7 @@ def build(cfg: Config, store: Store) -> str:
     last = (store.get_state("last_run") or "never")[:16].replace("T", " ")
     opts = "".join(f'<option value="{p}">≤ {p} {PRIORITY_LABEL[p]}</option>' for p in ("P1", "P2", "P3"))
     return f"""<!doctype html><html lang="en"><head><meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1"><title>Vendor Risk Monitor</title><style>{CSS}</style></head>
+<meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex,nofollow"><title>Vendor Risk Monitor</title><style>{CSS}</style></head>
 <body><header><h1>Vendor Risk Monitor</h1>
 <div class="mute">Last scan {html.escape(last)} UTC · generated {datetime.now(timezone.utc):%Y-%m-%d %H:%M} UTC ·
 grade A–F from open findings (KEV / exploited CVEs in your versions weigh most)</div></header>
