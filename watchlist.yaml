@@ -147,6 +147,9 @@ settings:
   alert_min_priority: P2     # breach / exploit news is P2, so it gets alerted
   alert_on_news: true
   news_title_match: true     # ignore Google News hits where the headline doesn't name the vendor
+  # NVD API key - read from the NVD_API_KEY environment variable / GitHub secret.
+  # Never paste the key itself here: this file is committed to the repo.
+  nvd_api_key: ${NVD_API_KEY}
   max_cveorg_lookups: 40
   max_github_lookups: 20
   global_feeds:
