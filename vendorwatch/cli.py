@@ -18,7 +18,7 @@ import sys
 import time
 from pathlib import Path
 
-from . import __version__, notify, report
+from . import __version__, drata, notify, report
 from .config import load_config
 from .scanner import Scanner, check_cve
 from .scoring import PRIORITY_LABEL
@@ -34,8 +34,14 @@ def _interval(s: str) -> int:
     return int(m.group(1)) * {"": 1, "s": 1, "m": 60, "h": 3600, "d": 86400}[m.group(2)]
 
 
-def _load(args):
+def _load(args, live_drata: bool = False):
+    """Load the watchlist and apply the Drata vendor inventory if enabled.
+
+    Scans pull Drata live; other commands use the copy cached by the last scan."""
     cfg = load_config(args.config)
+    cfg, _, note = drata.apply(cfg, live=live_drata)
+    if note and (live_drata or "fail" in note or "no " in note):
+        print(note, file=sys.stderr)
     return cfg, Store(cfg.settings.db_path)
 
 
@@ -81,13 +87,13 @@ def _scan_once(args, cfg, store) -> int:
 
 
 def cmd_scan(args) -> int:
-    cfg, store = _load(args)
+    cfg, store = _load(args, live_drata=True)
     return _scan_once(args, cfg, store)
 
 
 def cmd_watch(args) -> int:
     while True:
-        cfg, store = _load(args)  # reload so watchlist edits take effect without restart
+        cfg, store = _load(args, live_drata=True)  # reload so watchlist / Drata changes take effect
         try:
             _scan_once(args, cfg, store)
         except Exception as e:  # noqa: BLE001
@@ -119,7 +125,7 @@ def cmd_findings(args) -> int:
 
 
 def cmd_check(args) -> int:
-    cfg = load_config(args.config)
+    cfg, _ = _load(args)
     try:
         res = check_cve(cfg, args.cve)[0]
     except LookupError as e:
@@ -152,6 +158,26 @@ def cmd_ack(args) -> int:
     ok = store.set_status(args.key, status)
     print(f"{args.key}: {status}" if ok else f"no finding matching {args.key}")
     return 0 if ok else 1
+
+
+def cmd_drata(args) -> int:
+    cfg = load_config(args.config)
+    if not cfg.drata.get("enabled"):
+        print("Drata sync is off. Add a `drata:` section with `enabled: true` to the watchlist (see README).")
+        return 1
+    merged, rows, note = drata.apply(cfg, live=not args.cached)
+    print(note)
+    if not rows:
+        return 1
+    width = max(len(r["drata"]) for r in rows)
+    for r in sorted(rows, key=lambda r: r["drata"].lower()):
+        print(f"  {r['drata']:<{width}}  {r['status']:<12} risk={str(r['risk']):<8} {r['action']}")
+    kept = [a for a in merged.assets if not any(r["yaml"] == a.name or drata.clean_name(r["drata"]) == a.name
+                                                  for r in rows)]
+    if kept:
+        print("\nAlso monitored from the YAML only (not in Drata): " + ", ".join(a.name for a in kept))
+    print(f"\n{len(merged.assets)} asset(s) will be monitored.")
+    return 0
 
 
 def cmd_report(args) -> int:
@@ -202,6 +228,10 @@ def build_parser() -> argparse.ArgumentParser:
     g.add_argument("--resolved", action="store_true")
     g.add_argument("--reopen", action="store_true")
     s.set_defaults(fn=cmd_ack)
+
+    s = sub.add_parser("drata", help="preview how your Drata vendor inventory maps onto the watchlist")
+    s.add_argument("--cached", action="store_true", help="use the inventory cached by the last scan")
+    s.set_defaults(fn=cmd_drata)
 
     s = sub.add_parser("report", help="write the HTML dashboard")
     s.add_argument("--out")

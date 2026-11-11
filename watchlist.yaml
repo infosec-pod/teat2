@@ -182,6 +182,24 @@ assets:
   #   criticality: high
   #   keywords: [Confluence]
 
+# Drata vendor inventory sync
+# ---------------------------------------------------------------------------
+# Drata decides WHICH vendors are monitored and HOW critical they are:
+#   - new vendors in Drata are picked up automatically (name + website domain)
+#   - vendors whose status isn't listed below (e.g. OFFBOARDED, ARCHIVED) stop being monitored
+#   - criticality comes from Drata's risk level / critical flag / impact level
+# The entries above still apply: they fine-tune matching vendors (keywords,
+# domains, SEC ids) and keep anything Drata doesn't track (e.g. technologies).
+# Preview the mapping with:  python -m vendorwatch drata
+drata:
+  enabled: true
+  api_key: ${DRATA_API_KEY}     # Drata > Settings > API Keys; needs "Vendors: List Vendors"
+  region: us                    # us | eu | apac
+  statuses: [ACTIVE, APPROVED, UNDER_REVIEW, FLAGGED, ON_HOLD]
+  criticality_source: drata     # drata | yaml
+  keep_unmatched_yaml: true     # keep YAML entries that aren't in Drata
+  exclude: []                   # Drata vendor names to never monitor
+
 settings:
   db_path: data/vendorwatch.db
   report_path: report.html

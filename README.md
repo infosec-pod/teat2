@@ -74,6 +74,35 @@ For vendors you don't run software from, the strongest signals are:
     sec_cik: "1108524"          # SEC 8-K monitoring (find it on sec.gov/edgar/search)
 ```
 
+### Drata vendor inventory sync
+
+If your vendors live in Drata, let Drata drive the watchlist:
+
+```yaml
+drata:
+  enabled: true
+  api_key: ${DRATA_API_KEY}
+  region: us        # us | eu | apac
+  statuses: [ACTIVE, APPROVED, UNDER_REVIEW, FLAGGED, ON_HOLD]
+```
+
+On every scan, vendorwatch pulls the vendor list from Drata's Public API (`GET /public/v2/vendors`):
+
+- **New vendors** are monitored automatically. Their name becomes the news keyword and their website the domain used for leak-site matching.
+- **Offboarded / archived vendors** (any status not in `statuses`) stop being monitored.
+- **Criticality** follows Drata: the critical flag or a CRITICAL impact level makes a vendor critical, HIGH risk makes it high, MODERATE makes it medium, and vendors holding PII are never below medium. Set `criticality_source: yaml` to keep your own ratings.
+- **Your YAML entries still matter.** A YAML asset that matches a Drata vendor (by domain, name or keyword, so "Salesforce, Inc" matches `Salesforce`) keeps its tuned keywords, `exclude_keywords` and `sec_cik`. YAML assets not in Drata, such as firewalls you track by version, are kept.
+- If Drata is unreachable, the last synced inventory (cached next to the database) is used.
+
+Preview the mapping before relying on it:
+
+```bash
+export DRATA_API_KEY=...        # Drata > Settings > API Keys, permission "Vendors: List Vendors"
+python -m vendorwatch drata
+```
+
+The vendor API needs a Drata plan with the TPRM feature. Without it, Drata answers 402 and vendorwatch falls back to the YAML.
+
 ## Quick start
 
 ```bash

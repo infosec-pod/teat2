@@ -68,6 +68,13 @@ assets:
     sec_ticker: OKTA
     sec_cik: "1660134"
 
+# Optional: let your Drata vendor inventory decide which vendors are monitored
+# drata:
+#   enabled: true
+#   api_key: ${DRATA_API_KEY}
+#   region: us                  # us | eu | apac
+#   statuses: [ACTIVE, APPROVED, UNDER_REVIEW, FLAGGED, ON_HOLD]
+
 settings:
   db_path: data/vendorwatch.db
   report_path: report.html

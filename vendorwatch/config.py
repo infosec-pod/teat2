@@ -111,6 +111,7 @@ class Config:
     settings: Settings
     notify: dict[str, Any]
     path: str = ""
+    drata: dict[str, Any] = field(default_factory=dict)
 
     def asset(self, asset_id: str) -> Asset | None:
         for a in self.assets:
@@ -179,4 +180,7 @@ def load_config(path: str | os.PathLike) -> Config:
         global_feeds=_as_list(s.get("global_feeds")),
         sources=dict(s.get("sources") or {}),
     )
-    return Config(assets=assets, settings=settings, notify=raw.get("notify") or {}, path=str(path))
+    drata = dict(raw.get("drata") or {})
+    if drata.get("enabled") and not drata.get("api_key"):
+        drata["api_key"] = os.environ.get("DRATA_API_KEY", "")
+    return Config(assets=assets, settings=settings, notify=raw.get("notify") or {}, path=str(path), drata=drata)

@@ -6,6 +6,7 @@
 #        SLACK_WEBHOOK_URL, TEAMS_WEBHOOK_URL, VENDORWATCH_WEBHOOK_URL,
 #        SMTP_HOST, SMTP_PORT, SMTP_USERNAME, SMTP_PASSWORD, SMTP_FROM, ALERT_EMAIL_TO,
 #        NVD_API_KEY (recommended: much faster NVD queries)
+#        DRATA_API_KEY (if the watchlist's drata: section is enabled)
 #      and under the Variables tab: SEC_USER_AGENT = "Your Company security@yourco.com"
 #      (SEC asks automated clients to identify themselves)
 #   3. The findings database is kept between runs with the Actions cache, so you
@@ -60,6 +61,7 @@ jobs:
       - name: Scan
         env:
           NVD_API_KEY: ${{ secrets.NVD_API_KEY }}
+          DRATA_API_KEY: ${{ secrets.DRATA_API_KEY }}
           SEC_USER_AGENT: ${{ vars.SEC_USER_AGENT }}   # e.g. "Acme Corp security@acme.com"
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}   # enables GitHub PoC hunting
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
