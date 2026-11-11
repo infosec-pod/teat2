@@ -55,12 +55,18 @@ assets:
     criticality: high
     keywords: [Snowflake]
     exclude_keywords: [weather, storm]   # optional: drop items mentioning these
+    domains: [snowflake.com]             # recognise the vendor on ransomware leak sites
+    sec_ticker: SNOW                     # public company: watch SEC 8-K cyber disclosures
+    sec_cik: "1640147"                   # optional but more reliable than the ticker lookup
     notes: data warehouse - customer PII
 
   - name: Okta
     vendor: okta          # vendor-level KEV matching still works without a product
     criticality: critical
     keywords: [Okta]
+    domains: [okta.com]
+    sec_ticker: OKTA
+    sec_cik: "1660134"
 
 settings:
   db_path: data/vendorwatch.db
@@ -70,6 +76,10 @@ settings:
   alert_min_priority: P2     # P1 = act now, P2 = patch/investigate soon, P3 = track, P4 = info
   alert_on_news: true
   news_title_match: true     # ignore Google News hits where the headline doesn't name the vendor
+  cluster_days: 14           # group repeat coverage of the same story into one finding
+  sec_user_agent: ${SEC_USER_AGENT}   # SEC asks for "Company Name security@company.com"
+  sec_lookback_days: 365     # first scan: 8-K filings from the last year
+  ransomware_lookback_days: 365
   # nvd_api_key: ${NVD_API_KEY}   # free key, ~10x faster NVD queries (also read from env)
   # github_token: ${GITHUB_TOKEN} # enables public-PoC hunting on GitHub (also read from env)
   max_cveorg_lookups: 40
@@ -86,6 +96,8 @@ settings:
     google_news: true
     exploitdb: true
     github_poc: true
+    ransomware: true
+    sec: true
 
 notify:
   slack:

@@ -28,6 +28,8 @@ Alerts go to the console, Slack, Teams, email or any webhook. A self-contained H
 | **FIRST EPSS** | Probability a CVE gets exploited in the next 30 days | No |
 | **Exploit-DB** | Newly published public exploits matching your keywords | No |
 | **GitHub** | PoC repos for CVEs that affect you | `GITHUB_TOKEN` |
+| **Ransomware leak sites** (via ransomware.live) | Vendor named as a victim by a ransomware group, often days or weeks before any news | No |
+| **SEC EDGAR 8-Ks** | Item 1.05 material cybersecurity incident disclosures (and cyber-related 8.01s) from public vendors | No |
 | **Google News** | Exploitation, zero-day, breach, ransomware and outage coverage for each vendor | No |
 | **Vendor PSIRT feeds** | e.g. Fortinet and Palo Alto advisory RSS | No |
 | **Security news RSS** | BleepingComputer, The Hacker News, SecurityWeek… (any RSS/Atom) | No |
@@ -56,6 +58,21 @@ You get alerted once per finding. You're alerted again only if it **escalates** 
 ### Vendor risk grade (A–F)
 
 Each asset starts at 100. Open findings take points off: an exploited CVE in your versions −25, an unpatched high −10, a lower −3, a CVE with unverified impact −1 to −4, recent breach news −8 and exploit news −4 (news is capped at −30). A ≥ 90, B ≥ 80, C ≥ 70, D ≥ 60, otherwise F. Every scan records the score, so the dashboard shows the trend.
+
+### Incident monitoring for SaaS vendors
+
+For vendors you don't run software from, the strongest signals are:
+
+- **Ransomware leak sites**: the tool downloads every leak-site listing tracked by ransomware.live (about 1,000 a month). It matches each vendor by its `domains:` or exact company name, never by description text, so a victim that merely *uses* Salesforce isn't flagged as Salesforce. Each listing is P1 for high/critical vendors, otherwise P2, and costs 30 points of grade for 180 days.
+- **SEC 8-K filings**: public companies must file Item 1.05 within four business days of deciding a cyber incident is material. Set `sec_cik:` (or `sec_ticker:`); for subsidiaries use the parent company (NetSuite → Oracle, AWS → Amazon). Item 1.05 is P1 for high/critical vendors, otherwise P2. Item 8.01 "other events" filings are only kept if the document itself discusses a cyber incident.
+- **Duplicate stories are grouped**: when ten outlets report the same breach you get one finding and one alert, listing the other sources ("Also reported by 9 more sources"). Headlines are compared after dropping the vendor's name and generic words like "breach"; articles citing the same CVE are also grouped. `cluster_days` (default 14) sets the window.
+
+```yaml
+  - name: Salesforce
+    keywords: [Salesforce]
+    domains: [salesforce.com]   # leak-site matching
+    sec_cik: "1108524"          # SEC 8-K monitoring (find it on sec.gov/edgar/search)
+```
 
 ## Quick start
 
@@ -121,6 +138,8 @@ All secrets come from environment variables referenced in the YAML (`${SLACK_WEB
 
 ## Tips
 
+- **Set `SEC_USER_AGENT`** to something like `"Acme Corp security@acme.com"`. SEC asks automated clients to identify themselves and may block anonymous ones.
+- The first scan downloads a year of leak-site data and takes a few minutes. Later scans take seconds.
 - **Get an NVD API key** (free, instant). Without one, NVD allows 5 requests every 30 seconds, so a first scan of many products takes minutes. Later scans are incremental and take seconds.
 - Use precise `keywords` (product names, not just the vendor) to keep news noise down.
 - `alert_min_priority: P1` gives "only wake me for exploited things that affect me".

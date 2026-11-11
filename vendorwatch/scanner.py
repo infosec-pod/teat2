@@ -7,10 +7,12 @@ import logging
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 
+from .cluster import same_story, tokens
 from .config import Asset, Config
 from .scoring import PRIORITY_LABEL, asset_score, cve_priority, news_priority
 from .sources import Http
 from .sources import feeds as F
+from .sources import incidents as I
 from .sources import vulns as V
 from .store import PRIORITY_RANK, Store
 from .versions import assess, reassess
@@ -94,6 +96,7 @@ class Scanner:
         notified = stored.get("notified_priority")
         if notified and PRIORITY_RANK[notified] <= PRIORITY_RANK[f["priority"]]:
             return  # already told you at this level or higher
+        result.alerts = [a for a in result.alerts if a.finding["key"] != f["key"]]
         result.alerts.append(Alert(stored, "new" if not notified and change == "new" else "escalated",
                                    notified or (prev or {}).get("priority")))
 
@@ -123,10 +126,33 @@ class Scanner:
                 global_items.append(it)
 
         assets = [a for a in self.cfg.assets if not only or a.id in only or a.name in only]
+
+        # Ransomware leak sites: latest victims every run; whole months for a new vendor's
+        # baseline, and once a day to fill any gap left by missed runs.
+        self._ransom: list[dict] = []
+        self._ransom_complete = True
+        if self.s.source_enabled("ransomware"):
+            self._ransom = I.ransomware_recent(self.http)
+            last_month_pull = _parse_ts(self.store.get_state("rw_months"))
+            if any(not self.store.get_state(f"rw_baseline:{a.id}") for a in assets):
+                months = I.months_back(now, self.s.ransomware_lookback_days)
+            elif not last_month_pull or now - last_month_pull > timedelta(hours=20):
+                months = I.months_back(now, 7)
+            else:
+                months = []
+            if months:
+                more, self._ransom_complete = I.ransomware_months(self.http, months)
+                self._ransom += more
+                if self._ransom_complete:
+                    self.store.set_state("rw_months", now.isoformat())
+            log.info("ransomware.live: %d leak-site victims to check", len(self._ransom))
+        self._sec = I.Sec(self.http, self.s.sec_user_agent)
+
         for asset in assets:
             log.info("== %s", asset.name)
             try:
                 self._scan_asset(asset, now, full, kev, edb, global_items, result)
+                self._scan_incidents(asset, now, result)
                 self.store.set_state(f"last:{asset.id}", now.isoformat())
                 self.store.set_state(f"versions:{asset.id}", json.dumps(sorted(asset.versions)))
             except Exception as e:  # noqa: BLE001
@@ -137,6 +163,9 @@ class Scanner:
             self.store.record_score(asset.id, score[0], score[1])
 
         self.store.set_state("last_run", now.isoformat())
+        # alerts hold a snapshot; refresh so grouped coverage added later in the run is included
+        for a in result.alerts:
+            a.finding = self.store.get(a.finding["key"]) or a.finding
         result.alerts.sort(key=lambda a: (PRIORITY_RANK[a.finding["priority"]], a.finding["asset_id"]))
         return result
 
@@ -298,6 +327,8 @@ class Scanner:
             prio = news_priority(cat, linked_hot)
             if kind == "advisory" and prio == "P3" and "critical" in it["title"].lower():
                 prio = "P2"
+            if self._merge_into_story(asset, kind, it, cves, cat, prio, result):
+                continue
             self._record({
                 "key": f"{kind}:{asset.id}:{_h(it['url'] or it['title'])}",
                 "asset_id": asset.id, "type": kind, "priority": prio,
@@ -305,6 +336,103 @@ class Scanner:
                 "data": {"source": it.get("source") or it.get("feed", "Google News"), "summary": it["summary"],
                          "cves": cves, "category": cat},
             }, result)
+
+    # ----------------------------------------------------------------- duplicate stories
+    def _merge_into_story(self, asset: Asset, kind: str, it: dict, cves: list[str], cat: str, prio: str,
+                          result: ScanResult) -> bool:
+        """Attach this item to an existing finding about the same story. Returns True if merged."""
+        key = f"{kind}:{asset.id}:{_h(it['url'] or it['title'])}"
+        if self.store.has(key):
+            return False  # it's the story's own lead item - normal update path
+        cutoff = datetime.now(timezone.utc) - timedelta(days=self.s.cluster_days)
+        mine = tokens(it["title"], asset.search_terms + [asset.name])
+        for f in self.store.findings(asset.id, types=["news", "advisory"]):
+            seen = _parse_ts(f.get("published")) or _parse_ts(f.get("first_seen"))
+            if seen and seen < cutoff:
+                continue
+            d = f["data"]
+            coverage = d.get("coverage") or []
+            if it["url"] and (it["url"] == f.get("url") or any(c.get("url") == it["url"] for c in coverage)):
+                return True  # already have this exact article
+            members = [(f["title"], d.get("cves") or [])] + [(c.get("title", ""), c.get("cves") or []) for c in coverage]
+            if not any(same_story(mine, tokens(t, asset.search_terms + [asset.name]), cves, mc) for t, mc in members):
+                continue
+            coverage.append({"title": it["title"], "url": it["url"], "published": it.get("published", ""),
+                             "source": it.get("source") or it.get("feed", ""), "cves": cves})
+            d["coverage"] = coverage[-50:]
+            d["cves"] = sorted(set(d.get("cves") or []) | set(cves))
+            new_prio = prio if PRIORITY_RANK[prio] < PRIORITY_RANK[f["priority"]] else f["priority"]
+            if new_prio != f["priority"]:
+                d["category"] = cat
+            self._record({**f, "priority": new_prio, "data": d}, result)
+            return True
+        return False
+
+    # ----------------------------------------------------------------- incidents
+    def _scan_incidents(self, asset: Asset, now: datetime, result: ScanResult) -> None:
+        last = _parse_ts(self.store.get_state(f"incidents:{asset.id}"))
+        high = asset.criticality in ("high", "critical")
+
+        # Ransomware leak sites
+        if self.s.source_enabled("ransomware") and (asset.domains or asset.keywords):
+            victims = [v for v in self._ransom if I.victim_matches(v, asset)]
+            if self._ransom_complete:
+                self.store.set_state(f"rw_baseline:{asset.id}", now.isoformat())
+            window = now - timedelta(days=self.s.ransomware_lookback_days)
+            for v in victims:
+                rec = I.victim_record(v)
+                when = _parse_ts(rec["discovered"]) or _parse_ts(rec["attackdate"])
+                if when and when < window:
+                    continue
+                self._record({
+                    "key": f"ransomware:{asset.id}:{_h((rec['group'] + '|' + rec['victim']).lower())}",
+                    "asset_id": asset.id, "type": "ransomware", "priority": "P1" if high else "P2",
+                    "title": f"Ransomware leak site: '{rec['victim']}' listed by {rec['group'] or 'unknown group'}",
+                    "url": rec["url"], "published": rec["discovered"] or rec["attackdate"],
+                    "data": {**rec, "category": "breach", "source": "ransomware.live",
+                             "summary": rec["description"],
+                             "reasons": ["vendor named as a victim on a ransomware group's leak site - "
+                                         "ask the vendor whether your data is affected"]},
+                }, result)
+
+        # SEC 8-K cybersecurity disclosures
+        if self.s.source_enabled("sec") and (asset.sec_cik or asset.sec_ticker):
+            try:
+                cik = asset.sec_cik
+                if not cik:
+                    cik = self.store.get_state(f"cik:{asset.sec_ticker}")
+                    if not cik:
+                        cik = self._sec.resolve_cik(asset.sec_ticker, asset.name)
+                        if not cik:
+                            raise LookupError(f"ticker {asset.sec_ticker} not found on EDGAR")
+                        self.store.set_state(f"cik:{asset.sec_ticker}", cik)
+                start = (last - timedelta(days=2)) if last else now - timedelta(days=self.s.sec_lookback_days)
+                for fl in self._sec.filings_8k(cik, start):
+                    kind = I.classify_8k(fl["items"])
+                    if not kind:
+                        continue
+                    if kind == "voluntary":
+                        # Item 8.01 is "other events" - only keep it if the filing is about a cyber incident
+                        if not self.store.has(f"sec:{asset.id}:{fl['adsh']}") and not self._sec.mentions_cyber(fl["url"]):
+                            continue
+                    material = kind == "material"
+                    label = ("Item 1.05 MATERIAL cybersecurity incident" if material
+                             else "Item 8.01 cybersecurity-related disclosure")
+                    self._record({
+                        "key": f"sec:{asset.id}:{fl['adsh']}",
+                        "asset_id": asset.id, "type": "sec",
+                        "priority": "P1" if (material and high) else "P2",
+                        "title": f"SEC {fl['form']} {label}: {fl['company']}",
+                        "url": fl["url"], "published": fl["file_date"],
+                        "data": {"category": "breach", "source": "SEC EDGAR", "form": fl["form"],
+                                 "items": fl["items"], "adsh": fl["adsh"], "cik": cik, "kind": kind,
+                                 "reasons": ["vendor formally disclosed a material cybersecurity incident to the SEC"
+                                             if material else
+                                             "vendor 8-K mentions a cybersecurity incident - read it to confirm"]},
+                    }, result)
+            except Exception as e:  # noqa: BLE001
+                result.errors.append(f"SEC {asset.name}: {e}")
+        self.store.set_state(f"incidents:{asset.id}", now.isoformat())
 
     def _stored_priority(self, asset: Asset, cid: str) -> str | None:
         f = self.store.get(f"cve:{asset.id}:{cid}")

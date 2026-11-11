@@ -188,7 +188,7 @@ def build_parser() -> argparse.ArgumentParser:
     s = sub.add_parser("findings", help="list stored findings")
     s.add_argument("--asset", action="append")
     s.add_argument("--min", default="P3", choices=["P1", "P2", "P3", "P4", "p1", "p2", "p3", "p4"])
-    s.add_argument("--type", choices=["cve", "exploit", "news", "advisory"])
+    s.add_argument("--type", choices=["cve", "exploit", "news", "advisory", "ransomware", "sec"])
     s.add_argument("--all", action="store_true", help="include accepted/resolved")
     s.set_defaults(fn=cmd_findings)
 

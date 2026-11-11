@@ -47,9 +47,24 @@ def _lines_for(alert: Alert) -> list[str]:
             out.append(f"    {desc[:280]}{'…' if len(desc) > 280 else ''}")
         if d.get("patch_refs"):
             out.append(f"    Advisory/patch: {d['patch_refs'][0]}")
+    elif f["type"] == "ransomware":
+        out.append(f"    Group: {d.get('group', '?')} · attack date {str(d.get('attackdate', ''))[:10]}"
+                   f" · discovered {str(d.get('discovered', ''))[:10]}")
+        if d.get("domain"):
+            out.append(f"    Listed domain: {d['domain']}")
+        out.append("    Action: ask the vendor whether your data is in scope; watch for leaks of your data")
+    elif f["type"] == "sec":
+        out.append(f"    Filed {f.get('published', '')[:10]} · items {', '.join(d.get('items', []))}")
+        if d.get("reasons"):
+            out.append(f"    Why: {'; '.join(d['reasons'])}")
     else:
         src = d.get("source", "")
         out.append(f"    {f['type']} / {d.get('category', '')}{' via ' + src if src else ''}")
+        cov = d.get("coverage") or []
+        if cov:
+            names = list(dict.fromkeys(c.get("source") or "?" for c in cov))
+            out.append(f"    Also reported by {len(cov)} more source(s): {', '.join(names[:6])}"
+                       + ("…" if len(names) > 6 else ""))
     out.append(f"    {f.get('url', '')}")
     return out
 

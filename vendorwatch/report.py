@@ -47,13 +47,18 @@ function row(f){const d=f.data||{},imp=d.impact||{};let tags=[];
  if(imp.fixed_versions&&imp.fixed_versions.length)tags.push('<span class="tag">fix: '+esc(imp.fixed_versions.join(', '))+'</span>');
  if(d.category)tags.push(`<span class="tag">${esc(d.category)}</span>`);
  if(f.status!=='open')tags.push(`<span class="tag">${esc(f.status)}</span>`);
+ if(f.type==='ransomware')tags.push(`<span class="tag hot">leak site: ${esc(d.group)}</span>`);
+ if(f.type==='sec')tags.push(`<span class="tag ${d.kind==='material'?'hot':''}">8-K items ${esc((d.items||[]).join(', '))}</span>`);
+ const cov=d.coverage||[];if(cov.length)tags.push(`<span class="tag">+${cov.length} more source${cov.length>1?'s':''}</span>`);
  const why=d.reasons?`<div class="why">${esc(d.reasons.join(' · '))}</div>`:'';
  const det=d.description||d.summary?`<details><summary>details</summary><p>${esc(d.description||d.summary)}</p>${
   (d.patch_refs||[]).slice(0,3).map(u=>`<div><a href="${esc(u)}" target=_blank rel=noopener>${esc(u)}</a></div>`).join('')}${
   (d.github_pocs||[]).map(g=>`<div>PoC: <a href="${esc(g.url)}" target=_blank rel=noopener>${esc(g.name)}</a> ★${g.stars}</div>`).join('')}</details>`:'';
+ const covh=cov.length?`<details><summary>${cov.length} more report${cov.length>1?'s':''} of this story</summary>${
+  cov.map(c=>`<div><a href="${esc(c.url)}" target=_blank rel=noopener>${esc(c.title)}</a></div>`).join('')}</details>`:'';
  return `<div class="f"><span class="pill ${f.priority}">${f.priority}</span> <span class="t"><a href="${esc(f.url)}" target=_blank rel=noopener>${esc(f.title)}</a></span>
  <div class="meta">${esc(f.asset_name)} · ${esc(f.type)} · ${esc((f.published||f.first_seen||'').slice(0,10))} · <code>${esc(f.key)}</code></div>
- <div>${tags.join('')}</div>${why}${det}</div>`}
+ <div>${tags.join('')}</div>${why}${det}${covh}</div>`}
 function render(){const s=q.value.toLowerCase();const rows=F.filter(f=>(!asset||f.asset_id===asset)&&(!p.value||f.priority<=p.value)
  &&(!t.value||f.type===t.value)&&(!st.value||f.status===st.value)&&(!s||JSON.stringify(f).toLowerCase().includes(s)));
  list.innerHTML=rows.slice(0,500).map(row).join('')||'<p class="mute">Nothing matches.</p>';
@@ -104,7 +109,7 @@ grade A–F from open findings (KEV / exploited CVEs in your versions weigh most
 <main><div class="grid">{''.join(cards)}</div>
 <div class="controls"><input id="q" placeholder="Search CVE, title, text…">
 <select id="p"><option value="">All priorities</option>{opts}</select>
-<select id="t"><option value="">All types</option><option>cve</option><option>exploit</option><option>news</option><option>advisory</option></select>
+<select id="t"><option value="">All types</option><option>cve</option><option>exploit</option><option>news</option><option>advisory</option><option>ransomware</option><option>sec</option></select>
 <select id="st"><option value="open">Open</option><option value="">Any status</option><option>accepted</option><option>resolved</option></select>
 <span id="n" class="mute" style="align-self:center"></span></div>
 <div id="list"></div></main>

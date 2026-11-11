@@ -47,6 +47,9 @@ class Asset:
     feeds: list[str] = field(default_factory=list)      # extra RSS/Atom feeds (e.g. vendor PSIRT)
     feed_filter: bool = True         # filter the asset's own feeds by keywords
     exclude_keywords: list[str] = field(default_factory=list)  # drop news/feed items mentioning these
+    domains: list[str] = field(default_factory=list)  # vendor domains, e.g. salesforce.com (ransomware matching)
+    sec_ticker: str = ""             # stock ticker for SEC 8-K monitoring, e.g. CRM
+    sec_cik: str = ""                # or the SEC CIK number directly
     owner: str = ""
     notes: str = ""
 
@@ -87,6 +90,10 @@ class Settings:
     alert_min_priority: str = "P2"   # P1 | P2 | P3 | P4 - alert threshold
     alert_on_news: bool = True
     news_title_match: bool = True    # keep Google News items only if the headline names the asset
+    cluster_days: int = 14           # group duplicate coverage of a story seen within this many days
+    sec_user_agent: str = ""         # SEC asks for "Company contact@example.com"; env SEC_USER_AGENT
+    sec_lookback_days: int = 365     # first-run window for SEC 8-K filings
+    ransomware_lookback_days: int = 365  # first-run window for leak-site listings
     nvd_api_key: str = ""
     github_token: str = ""
     max_cveorg_lookups: int = 40
@@ -140,6 +147,9 @@ def load_config(path: str | os.PathLike) -> Config:
                 feeds=_as_list(a.get("feeds")),
                 feed_filter=bool(a.get("feed_filter", True)),
                 exclude_keywords=_as_list(a.get("exclude_keywords")),
+                domains=_as_list(a.get("domains")),
+                sec_ticker=str(a.get("sec_ticker", "") or "").upper(),
+                sec_cik=str(a.get("sec_cik", "") or ""),
                 owner=str(a.get("owner", "")),
                 notes=str(a.get("notes", "")),
             )
@@ -158,6 +168,10 @@ def load_config(path: str | os.PathLike) -> Config:
         alert_min_priority=str(s.get("alert_min_priority", Settings.alert_min_priority)).upper(),
         alert_on_news=bool(s.get("alert_on_news", True)),
         news_title_match=bool(s.get("news_title_match", True)),
+        cluster_days=int(s.get("cluster_days", Settings.cluster_days)),
+        sec_user_agent=s.get("sec_user_agent") or os.environ.get("SEC_USER_AGENT", ""),
+        sec_lookback_days=int(s.get("sec_lookback_days", Settings.sec_lookback_days)),
+        ransomware_lookback_days=int(s.get("ransomware_lookback_days", Settings.ransomware_lookback_days)),
         nvd_api_key=s.get("nvd_api_key") or os.environ.get("NVD_API_KEY", ""),
         github_token=s.get("github_token") or os.environ.get("GITHUB_TOKEN", ""),
         max_cveorg_lookups=int(s.get("max_cveorg_lookups", Settings.max_cveorg_lookups)),

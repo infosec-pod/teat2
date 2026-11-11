@@ -8,6 +8,11 @@
 # ransomware, vulnerability, outage...). Vendors whose name is also an ordinary
 # word (Claude, Loom, Badger, Domo) use more specific phrases to keep noise down.
 #
+# `domains` are used to recognise the vendor on ransomware leak sites.
+# `sec_ticker` (public companies only) enables SEC 8-K cyber-incident monitoring;
+#   for subsidiaries it's the parent's ticker (NetSuite -> ORCL, AWS -> AMZN).
+#   Private companies (Anthropic, Zapier, Docker, HawkSoft...) don't file with the SEC.
+#
 # `criticality` (low | medium | high | critical) is a first guess based on the
 # data each vendor typically holds. Adjust it to how you actually use them.
 #
@@ -20,98 +25,136 @@ assets:
   - name: Salesforce
     criticality: critical
     keywords: [Salesforce, "Salesforce Inc", "Salesforce data theft", "Salesforce instance"]
+    domains: [salesforce.com]
+    sec_ticker: CRM
+    sec_cik: "1108524"
     notes: CRM - customer data. (Salesforce also owns Slack, Tableau and MuleSoft - add them if you use them.)
 
   - name: NetSuite
     criticality: critical
     keywords: [NetSuite, "Oracle NetSuite"]
+    domains: [netsuite.com]
+    sec_ticker: ORCL   # SEC filings are Oracle's (parent company)
+    sec_cik: "1341439"
     notes: ERP / financials
 
   - name: Snowflake
     criticality: high
     keywords: [Snowflake, "Snowflake Inc", "Snowflake data cloud"]
+    domains: [snowflake.com]
+    sec_ticker: SNOW
+    sec_cik: "1640147"
     notes: data warehouse
 
   - name: Anthropic Claude
     criticality: high
     keywords: [Anthropic, "Claude AI", "Claude Code", "Anthropic Claude", "Claude.ai"]
+    domains: [anthropic.com, claude.ai]
     notes: AI assistant - "Claude" alone is too ambiguous for news matching
 
   - name: Domo
     criticality: high
-    keywords: ["Domo Inc", "Domo BI", "Domo data", "Domo platform", "Domo.com"]
+    keywords: ["Domo Inc", "Domo BI", "Domo data", "Domo platform", "Domo.com", "Huckleberry.ai"]
+    domains: [domo.com]
+    sec_ticker: HUCK      # Domo, Inc. renamed itself Huckleberry.ai, Inc. (ticker HUCK) in Sept 2026
+    sec_cik: "1505952"
     notes: BI / dashboards
 
   - name: TitanDXP
     criticality: medium
     keywords: [TitanDXP, "Titan DXP"]
+    domains: [titandxp.com]
 
   - name: Badger
     criticality: medium
     keywords: ["Badger Maps", "BadgerMaps"]
+    domains: [badgermapping.com]
     notes: assumed to be Badger Maps (sales route planning) - change the keywords if it's a different Badger
 
   - name: Proposify
     criticality: medium
     keywords: [Proposify]
+    domains: [proposify.com]
 
   - name: SurveyMonkey
     criticality: medium
     keywords: [SurveyMonkey, "Momentive"]
+    domains: [surveymonkey.com]
     notes: Momentive is the former parent company name
 
   - name: HawkSoft
     criticality: high
     keywords: [HawkSoft, "Hawk Soft"]
+    domains: [hawksoft.com]
     notes: insurance agency management system - likely holds client PII
 
   - name: Atlassian
     criticality: high
     keywords: [Atlassian, Jira, Confluence, Bitbucket, Trello]
+    domains: [atlassian.com]
+    sec_ticker: TEAM
+    sec_cik: "1650372"
     notes: if you self-host Jira/Confluence Data Center, add a CVE-tracked entry (see bottom)
 
   - name: AG Grid
     criticality: low
     keywords: ["AG Grid", "ag-grid", "AG Grid Ltd"]
+    domains: [ag-grid.com]
     notes: JavaScript data-grid library - watch for npm supply-chain incidents
 
   - name: Docker
     criticality: high
     keywords: ["Docker Hub", "Docker Desktop", "Docker Inc", "Docker Engine"]
+    domains: [docker.com]
     notes: plain "Docker" matches a lot of generic container-security news
 
   - name: Zapier
     criticality: high
     keywords: [Zapier]
+    domains: [zapier.com]
     notes: automation - often holds OAuth tokens to many other systems
 
   - name: UserGuiding
     criticality: low
     keywords: [UserGuiding]
+    domains: [userguiding.com]
 
   - name: DocuSign
     criticality: high
     keywords: [DocuSign]
+    domains: [docusign.com]
+    sec_ticker: DOCU
+    sec_cik: "1261333"
     exclude_keywords: [scam, phishing, "fake DocuSign", lure]   # brand-abuse phishing isn't a DocuSign incident
     notes: remove exclude_keywords if you also want DocuSign-themed phishing campaigns
 
   - name: GoDaddy
     criticality: high
     keywords: [GoDaddy]
+    domains: [godaddy.com]
+    sec_ticker: GDDY
+    sec_cik: "1609711"
     notes: domains / DNS - a compromise here can hijack your domains
 
   - name: Loom
     criticality: medium
     keywords: ["Loom video", "Loom Inc", "Atlassian Loom", "Loom.com"]
+    domains: [loom.com]
     notes: owned by Atlassian; "Loom" alone is too ambiguous
 
   - name: Adobe
     criticality: medium
     keywords: [Adobe, "Adobe Acrobat", "Adobe Experience Manager", "Adobe Creative Cloud"]
+    domains: [adobe.com]
+    sec_ticker: ADBE
+    sec_cik: "796343"
 
   - name: Amazon Web Services
     criticality: critical
     keywords: ["Amazon Web Services", "AWS outage", "AWS breach", "AWS account", "AWS S3", "AWS IAM"]
+    domains: [aws.amazon.com, amazon.com]
+    sec_ticker: AMZN   # SEC filings are Amazon's (parent company)
+    sec_cik: "1018724"
     notes: plain "AWS" matches many stories about other companies' misconfigured buckets
 
   # --- Examples: CVE + patch tracking for software you actually run --------
@@ -150,6 +193,9 @@ settings:
   # NVD API key - read from the NVD_API_KEY environment variable / GitHub secret.
   # Never paste the key itself here: this file is committed to the repo.
   nvd_api_key: ${NVD_API_KEY}
+  # SEC asks automated clients to identify themselves: "Company Name security@company.com"
+  sec_user_agent: ${SEC_USER_AGENT}
+  cluster_days: 14           # group repeat coverage of the same story within 2 weeks
   max_cveorg_lookups: 40
   max_github_lookups: 20
   global_feeds:
@@ -164,6 +210,8 @@ settings:
     google_news: true
     exploitdb: true
     github_poc: true
+    ransomware: true         # ransomware.live leak-site monitoring
+    sec: true                # SEC EDGAR 8-K cyber disclosures
 
 notify:
   slack:

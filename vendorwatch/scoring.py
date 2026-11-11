@@ -104,6 +104,13 @@ def asset_score(findings: list[dict]) -> tuple[int, str, list[str]]:
                     {"P1": 25, "P2": 10, "P3": 3}.get(p, 0))
             elif aff is None and p in ("P2", "P3"):
                 hit("CVEs with unverified impact", 4 if p == "P2" else 1)
+        elif f["type"] == "ransomware" and _recent(f, 180):
+            hit("listed on a ransomware leak site", 30)
+        elif f["type"] == "sec" and _recent(f, 365):
+            if d.get("kind") == "material":
+                hit("material cyber incident disclosed to the SEC", 25)
+            else:
+                hit("cyber incident mentioned in an SEC filing", 8)
         elif f["type"] in ("news", "advisory", "exploit") and _recent(f, 30):
             cat = d.get("category", "")
             pts = 0.0
