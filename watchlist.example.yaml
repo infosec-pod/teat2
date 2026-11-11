@@ -1,0 +1,101 @@
+# vendorwatch watchlist
+# ---------------------------------------------------------------------------
+# List each vendor / technology you depend on. For software & appliances, give
+# the CPE vendor + product and the VERSIONS YOU RUN so vendorwatch can tell you
+# whether a new CVE actually affects you and which version fixes it.
+#
+# Find the CPE names at https://nvd.nist.gov/products/cpe/search
+#   e.g. cpe:2.3:o:fortinet:fortios  ->  part: o, vendor: fortinet, product: fortios
+#
+# Vendors you don't run software from (SaaS, suppliers, MSPs) can be listed
+# with just a name + keywords: they get breach / ransomware / outage news monitoring.
+#
+# ${ENV_VAR} and ${ENV_VAR:-default} are expanded, so keep secrets in env vars.
+
+assets:
+  - name: FortiGate firewalls
+    vendor: fortinet
+    product: fortios
+    part: o
+    versions: ["7.2.8", "7.4.3"]        # what you actually run
+    criticality: critical               # low | medium | high | critical
+    keywords: [FortiOS, FortiGate, "Fortinet SSL VPN"]
+    owner: network-team
+    feeds:
+      - https://filestore.fortinet.com/fortiguard/rss/ir.xml   # Fortinet PSIRT advisories
+
+  - name: FortiManager
+    vendor: fortinet
+    product: fortimanager
+    part: a
+    versions: ["7.4.2"]
+    criticality: high
+    keywords: [FortiManager]
+
+  - name: Palo Alto GlobalProtect
+    vendor: paloaltonetworks
+    product: pan-os
+    part: o
+    versions: ["10.2.9", "11.1.2"]
+    criticality: critical
+    keywords: [PAN-OS, GlobalProtect, "Palo Alto Networks firewall"]
+    feeds:
+      - https://security.paloaltonetworks.com/rss.xml
+
+  - name: Ivanti Connect Secure
+    vendor: ivanti
+    product: connect_secure
+    part: a
+    versions: ["22.7r2.3"]
+    criticality: high
+    keywords: ["Ivanti Connect Secure", "Ivanti VPN", "Pulse Secure"]
+
+  # Third parties without a product version - breach / incident news only
+  - name: Snowflake
+    criticality: high
+    keywords: [Snowflake]
+    notes: data warehouse - customer PII
+
+  - name: Okta
+    vendor: okta          # vendor-level KEV matching still works without a product
+    criticality: critical
+    keywords: [Okta]
+
+settings:
+  db_path: data/vendorwatch.db
+  report_path: report.html
+  lookback_days: 30          # how far back the first scan looks (NVD + feeds)
+  news_days: 7               # Google News window on the first scan
+  alert_min_priority: P2     # P1 = act now, P2 = patch/investigate soon, P3 = track, P4 = info
+  alert_on_news: true
+  # nvd_api_key: ${NVD_API_KEY}   # free key, ~10x faster NVD queries (also read from env)
+  # github_token: ${GITHUB_TOKEN} # enables public-PoC hunting on GitHub (also read from env)
+  max_cveorg_lookups: 40
+  max_github_lookups: 20
+  global_feeds:              # filtered by each asset's keywords
+    - https://www.bleepingcomputer.com/feed/
+    - https://feeds.feedburner.com/TheHackersNews
+    - https://www.securityweek.com/feed/
+  sources:                   # set any to false to disable
+    nvd: true
+    kev: true
+    epss: true
+    cveorg: true
+    google_news: true
+    exploitdb: true
+    github_poc: true
+
+notify:
+  slack:
+    webhook_url: ${SLACK_WEBHOOK_URL}
+  teams:
+    webhook_url: ${TEAMS_WEBHOOK_URL}
+  webhook:
+    url: ${VENDORWATCH_WEBHOOK_URL}     # generic JSON POST (SOAR, Jira automation, etc.)
+  email:
+    smtp_host: ${SMTP_HOST}
+    smtp_port: ${SMTP_PORT:-587}
+    username: ${SMTP_USERNAME}
+    password: ${SMTP_PASSWORD}
+    from: ${SMTP_FROM}
+    to: ${ALERT_EMAIL_TO}

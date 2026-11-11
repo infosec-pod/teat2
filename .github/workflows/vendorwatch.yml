@@ -1,0 +1,79 @@
+# Runs vendorwatch on a schedule. Free on GitHub Actions; no server needed.
+#
+# Setup:
+#   1. Commit a watchlist.yaml (copy watchlist.example.yaml). It holds no secrets.
+#   2. Repo -> Settings -> Secrets and variables -> Actions, add whichever you use:
+#        SLACK_WEBHOOK_URL, TEAMS_WEBHOOK_URL, VENDORWATCH_WEBHOOK_URL,
+#        SMTP_HOST, SMTP_PORT, SMTP_USERNAME, SMTP_PASSWORD, SMTP_FROM, ALERT_EMAIL_TO,
+#        NVD_API_KEY (recommended: much faster NVD queries)
+#   3. The findings database is kept between runs with the Actions cache, so you
+#      only get alerted about things that are NEW (or got worse).
+name: vendorwatch
+
+on:
+  schedule:
+    - cron: "17 */4 * * *"        # every 4 hours
+  workflow_dispatch:
+    inputs:
+      full:
+        description: "Pull full NVD history (baseline)"
+        type: boolean
+        default: false
+
+concurrency:
+  group: vendorwatch
+  cancel-in-progress: false
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - run: pip install -r requirements.txt
+
+      - name: Restore findings database
+        uses: actions/cache/restore@v4
+        with:
+          path: data
+          key: vendorwatch-db-${{ github.run_id }}
+          restore-keys: vendorwatch-db-
+
+      - name: Scan
+        env:
+          NVD_API_KEY: ${{ secrets.NVD_API_KEY }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}   # enables GitHub PoC hunting
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+          TEAMS_WEBHOOK_URL: ${{ secrets.TEAMS_WEBHOOK_URL }}
+          VENDORWATCH_WEBHOOK_URL: ${{ secrets.VENDORWATCH_WEBHOOK_URL }}
+          SMTP_HOST: ${{ secrets.SMTP_HOST }}
+          SMTP_PORT: ${{ secrets.SMTP_PORT }}
+          SMTP_USERNAME: ${{ secrets.SMTP_USERNAME }}
+          SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
+          SMTP_FROM: ${{ secrets.SMTP_FROM }}
+          ALERT_EMAIL_TO: ${{ secrets.ALERT_EMAIL_TO }}
+        run: |
+          CONFIG=watchlist.yaml
+          [ -f "$CONFIG" ] || CONFIG=watchlist.example.yaml
+          python -m vendorwatch -c "$CONFIG" scan ${{ inputs.full && '--full' || '' }} --notify-baseline
+
+      - name: Save findings database
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: data
+          key: vendorwatch-db-${{ github.run_id }}
+
+      - name: Upload dashboard
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: vendor-risk-dashboard
+          path: report.html
+          retention-days: 30
