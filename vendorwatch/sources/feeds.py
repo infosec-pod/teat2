@@ -14,9 +14,12 @@ from .vulns import CVE_RE
 GOOGLE_NEWS = "https://news.google.com/rss/search?q={q}&hl=en-US&gl=US&ceid=US:en"
 EXPLOITDB_RSS = "https://www.exploit-db.com/rss.xml"
 
+# Google News query terms. Keep "when:" FIRST in the query: once a query passes
+# ~200 characters Google silently ignores a trailing "when:" and returns old,
+# relevance-ranked stories instead of recent ones.
 RISK_TERMS = (
-    "vulnerability", "vulnerabilities", "exploit", "exploited", "zero-day", "0-day", "CVE",
-    "patch", "breach", "ransomware", "hacked", "cyberattack", "data leak", "compromised", "outage",
+    "breach", "ransomware", "hacked", "vulnerability", "exploited", "zero-day",
+    "CVE", "patch", "outage", "cyberattack", "data leak", "exploit",
 )
 
 # keyword -> category, checked in order (first hit wins)
@@ -111,8 +114,8 @@ def matches_terms(text: str, terms: list[str]) -> bool:
 def google_news(http: Http, terms: list[str], days: int) -> list[dict]:
     """Google News RSS search for risk-relevant coverage of the asset."""
     who = " OR ".join(f'"{t}"' for t in terms[:6])
-    what = " OR ".join(f'"{w}"' if " " in w else w for w in RISK_TERMS)
-    q = f"({who}) ({what}) when:{max(1, days)}d"
+    what = " OR ".join(f'"{w}"' if (" " in w or "-" in w) else w for w in RISK_TERMS)
+    q = f"when:{max(1, days)}d ({who}) ({what})"
     try:
         r = http.get(GOOGLE_NEWS.format(q=quote_plus(q)), retries=2, backoff=3)
         items = parse_feed(r.text)

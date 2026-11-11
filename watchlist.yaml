@@ -1,0 +1,178 @@
+# vendorwatch watchlist - SaaS / third-party vendors
+# ---------------------------------------------------------------------------
+# These are tracked for breach, ransomware, outage, exploitation and security
+# news. There's no `product`/`versions` because you don't run their software.
+#
+# `keywords` decide what counts as news about the vendor. They're matched as
+# whole words, and each news search combines them with risk terms (breach,
+# ransomware, vulnerability, outage...). Vendors whose name is also an ordinary
+# word (Claude, Loom, Badger, Domo) use more specific phrases to keep noise down.
+#
+# `criticality` (low | medium | high | critical) is a first guess based on the
+# data each vendor typically holds. Adjust it to how you actually use them.
+#
+# If you also RUN software from one of these vendors (e.g. Docker Desktop,
+# Adobe Acrobat, Jira/Confluence Data Center), add a separate entry with
+# vendor/product/versions to get CVE + patch tracking. See the commented
+# examples at the bottom.
+
+assets:
+  - name: Salesforce
+    criticality: critical
+    keywords: [Salesforce, "Salesforce Inc", "Salesforce data theft", "Salesforce instance"]
+    notes: CRM - customer data. (Salesforce also owns Slack, Tableau and MuleSoft - add them if you use them.)
+
+  - name: NetSuite
+    criticality: critical
+    keywords: [NetSuite, "Oracle NetSuite"]
+    notes: ERP / financials
+
+  - name: Snowflake
+    criticality: high
+    keywords: [Snowflake, "Snowflake Inc", "Snowflake data cloud"]
+    notes: data warehouse
+
+  - name: Anthropic Claude
+    criticality: high
+    keywords: [Anthropic, "Claude AI", "Claude Code", "Anthropic Claude", "Claude.ai"]
+    notes: AI assistant - "Claude" alone is too ambiguous for news matching
+
+  - name: Domo
+    criticality: high
+    keywords: ["Domo Inc", "Domo BI", "Domo data", "Domo platform", "Domo.com"]
+    notes: BI / dashboards
+
+  - name: TitanDXP
+    criticality: medium
+    keywords: [TitanDXP, "Titan DXP"]
+
+  - name: Badger
+    criticality: medium
+    keywords: ["Badger Maps", "BadgerMaps"]
+    notes: assumed to be Badger Maps (sales route planning) - change the keywords if it's a different Badger
+
+  - name: Proposify
+    criticality: medium
+    keywords: [Proposify]
+
+  - name: SurveyMonkey
+    criticality: medium
+    keywords: [SurveyMonkey, "Momentive"]
+    notes: Momentive is the former parent company name
+
+  - name: HawkSoft
+    criticality: high
+    keywords: [HawkSoft, "Hawk Soft"]
+    notes: insurance agency management system - likely holds client PII
+
+  - name: Atlassian
+    criticality: high
+    keywords: [Atlassian, Jira, Confluence, Bitbucket, Trello]
+    notes: if you self-host Jira/Confluence Data Center, add a CVE-tracked entry (see bottom)
+
+  - name: AG Grid
+    criticality: low
+    keywords: ["AG Grid", "ag-grid", "AG Grid Ltd"]
+    notes: JavaScript data-grid library - watch for npm supply-chain incidents
+
+  - name: Docker
+    criticality: high
+    keywords: ["Docker Hub", "Docker Desktop", "Docker Inc", "Docker Engine"]
+    notes: plain "Docker" matches a lot of generic container-security news
+
+  - name: Zapier
+    criticality: high
+    keywords: [Zapier]
+    notes: automation - often holds OAuth tokens to many other systems
+
+  - name: UserGuiding
+    criticality: low
+    keywords: [UserGuiding]
+
+  - name: DocuSign
+    criticality: high
+    keywords: [DocuSign]
+    exclude_keywords: [scam, phishing, "fake DocuSign", lure]   # brand-abuse phishing isn't a DocuSign incident
+    notes: remove exclude_keywords if you also want DocuSign-themed phishing campaigns
+
+  - name: GoDaddy
+    criticality: high
+    keywords: [GoDaddy]
+    notes: domains / DNS - a compromise here can hijack your domains
+
+  - name: Loom
+    criticality: medium
+    keywords: ["Loom video", "Loom Inc", "Atlassian Loom", "Loom.com"]
+    notes: owned by Atlassian; "Loom" alone is too ambiguous
+
+  - name: Adobe
+    criticality: medium
+    keywords: [Adobe, "Adobe Acrobat", "Adobe Experience Manager", "Adobe Creative Cloud"]
+
+  - name: Amazon Web Services
+    criticality: critical
+    keywords: ["Amazon Web Services", "AWS outage", "AWS breach", "AWS account", "AWS S3", "AWS IAM"]
+    notes: plain "AWS" matches many stories about other companies' misconfigured buckets
+
+  # --- Examples: CVE + patch tracking for software you actually run --------
+  # - name: Docker Desktop
+  #   vendor: docker
+  #   product: desktop
+  #   part: a
+  #   versions: ["4.37.1"]
+  #   criticality: high
+  #   keywords: ["Docker Desktop"]
+  #
+  # - name: Adobe Acrobat Reader
+  #   vendor: adobe
+  #   product: acrobat_reader_dc
+  #   part: a
+  #   versions: ["24.005.20320"]
+  #   criticality: medium
+  #   keywords: ["Acrobat Reader", "Adobe Acrobat"]
+  #
+  # - name: Confluence Data Center
+  #   vendor: atlassian
+  #   product: confluence_data_center
+  #   part: a
+  #   versions: ["8.5.16"]
+  #   criticality: high
+  #   keywords: [Confluence]
+
+settings:
+  db_path: data/vendorwatch.db
+  report_path: report.html
+  lookback_days: 30
+  news_days: 14              # first scan looks back 2 weeks of news
+  alert_min_priority: P2     # breach / exploit news is P2, so it gets alerted
+  alert_on_news: true
+  news_title_match: true     # ignore Google News hits where the headline doesn't name the vendor
+  max_cveorg_lookups: 40
+  max_github_lookups: 20
+  global_feeds:
+    - https://www.bleepingcomputer.com/feed/
+    - https://feeds.feedburner.com/TheHackersNews
+    - https://www.securityweek.com/feed/
+  sources:
+    nvd: true
+    kev: true
+    epss: true
+    cveorg: true
+    google_news: true
+    exploitdb: true
+    github_poc: true
+
+notify:
+  slack:
+    webhook_url: ${SLACK_WEBHOOK_URL}
+  teams:
+    webhook_url: ${TEAMS_WEBHOOK_URL}
+  webhook:
+    url: ${VENDORWATCH_WEBHOOK_URL}
+  email:
+    smtp_host: ${SMTP_HOST}
+    smtp_port: ${SMTP_PORT:-587}
+    username: ${SMTP_USERNAME}
+    password: ${SMTP_PASSWORD}
+    from: ${SMTP_FROM}
+    to: ${ALERT_EMAIL_TO}

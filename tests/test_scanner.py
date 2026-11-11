@@ -66,3 +66,18 @@ def test_scan_alerts_then_dedups_then_reassesses(tmp_path, monkeypatch):
     f = store.get("cve:fortigate:CVE-2024-21762")
     assert f["priority"] == "P4" and f["data"]["impact"]["affected"] is False
     assert res3.scores["fortigate"][0] == 100
+
+
+def test_news_title_match_and_excludes(tmp_path, monkeypatch):
+    _stub(monkeypatch)
+    monkeypatch.setattr(F, "google_news", lambda http, terms, days: [
+        {"title": "Snowflake customers hit by data breach - Wired", "url": "https://x/1", "published": "", "summary": "", "source": "Wired"},
+        {"title": "Big retailer breached - Wired", "url": "https://x/2", "published": "", "summary": "snowflake mentioned in body", "source": "Wired"},
+        {"title": "Snowflake phishing scam warning - Blog", "url": "https://x/3", "published": "", "summary": "", "source": "Blog"},
+    ] if "Snowflake" in terms else [])
+    p = tmp_path / "w.yaml"
+    p.write_text(yaml.safe_dump({"assets": [{"name": "Snowflake", "keywords": ["Snowflake"], "exclude_keywords": ["scam"]}],
+                                 "settings": {"db_path": ":memory:"}}))
+    store = Store(":memory:")
+    Scanner(load_config(p), store).run()
+    assert [f["url"] for f in store.findings("snowflake")] == ["https://x/1"]

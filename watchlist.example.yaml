@@ -54,6 +54,7 @@ assets:
   - name: Snowflake
     criticality: high
     keywords: [Snowflake]
+    exclude_keywords: [weather, storm]   # optional: drop items mentioning these
     notes: data warehouse - customer PII
 
   - name: Okta
@@ -68,6 +69,7 @@ settings:
   news_days: 7               # Google News window on the first scan
   alert_min_priority: P2     # P1 = act now, P2 = patch/investigate soon, P3 = track, P4 = info
   alert_on_news: true
+  news_title_match: true     # ignore Google News hits where the headline doesn't name the vendor
   # nvd_api_key: ${NVD_API_KEY}   # free key, ~10x faster NVD queries (also read from env)
   # github_token: ${GITHUB_TOKEN} # enables public-PoC hunting on GitHub (also read from env)
   max_cveorg_lookups: 40

@@ -178,6 +178,8 @@ class Scanner:
             text = f"{it['title']} {it['summary']}"
             if not F.matches_terms(text, asset.search_terms):
                 continue
+            if asset.exclude_keywords and F.matches_terms(text, asset.exclude_keywords):
+                continue
             cves = F.extract_cves(text)
             exploit_cves.update(cves)
             wanted.update(cves)
@@ -192,6 +194,9 @@ class Scanner:
         items: list[tuple[str, dict]] = []
         if self.s.source_enabled("google_news"):
             for it in F.google_news(self.http, asset.search_terms, news_days):
+                headline = it["title"].rsplit(" - ", 1)[0] if it.get("source") else it["title"]
+                if self.s.news_title_match and not F.matches_terms(headline, asset.search_terms):
+                    continue  # Google matched the article body only - usually noise
                 items.append(("news", it))
         for url in asset.feeds:
             for it in F.fetch_feed(self.http, url):
@@ -210,6 +215,8 @@ class Scanner:
             if pub and pub < cutoff and not full:
                 continue
             text = f"{it['title']} {it['summary']}"
+            if asset.exclude_keywords and F.matches_terms(text, asset.exclude_keywords):
+                continue
             cves = F.extract_cves(text)
             cat = F.categorize(text)
             if cat == "exploit":

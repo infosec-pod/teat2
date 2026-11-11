@@ -46,6 +46,7 @@ class Asset:
     criticality: str = "medium"      # low | medium | high | critical
     feeds: list[str] = field(default_factory=list)      # extra RSS/Atom feeds (e.g. vendor PSIRT)
     feed_filter: bool = True         # filter the asset's own feeds by keywords
+    exclude_keywords: list[str] = field(default_factory=list)  # drop news/feed items mentioning these
     owner: str = ""
     notes: str = ""
 
@@ -85,6 +86,7 @@ class Settings:
     news_days: int = 7               # Google News "when:" window
     alert_min_priority: str = "P2"   # P1 | P2 | P3 | P4 - alert threshold
     alert_on_news: bool = True
+    news_title_match: bool = True    # keep Google News items only if the headline names the asset
     nvd_api_key: str = ""
     github_token: str = ""
     max_cveorg_lookups: int = 40
@@ -137,6 +139,7 @@ def load_config(path: str | os.PathLike) -> Config:
                 criticality=str(a.get("criticality", "medium")).lower(),
                 feeds=_as_list(a.get("feeds")),
                 feed_filter=bool(a.get("feed_filter", True)),
+                exclude_keywords=_as_list(a.get("exclude_keywords")),
                 owner=str(a.get("owner", "")),
                 notes=str(a.get("notes", "")),
             )
@@ -154,6 +157,7 @@ def load_config(path: str | os.PathLike) -> Config:
         news_days=int(s.get("news_days", Settings.news_days)),
         alert_min_priority=str(s.get("alert_min_priority", Settings.alert_min_priority)).upper(),
         alert_on_news=bool(s.get("alert_on_news", True)),
+        news_title_match=bool(s.get("news_title_match", True)),
         nvd_api_key=s.get("nvd_api_key") or os.environ.get("NVD_API_KEY", ""),
         github_token=s.get("github_token") or os.environ.get("GITHUB_TOKEN", ""),
         max_cveorg_lookups=int(s.get("max_cveorg_lookups", Settings.max_cveorg_lookups)),
