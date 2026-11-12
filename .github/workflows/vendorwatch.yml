@@ -7,6 +7,7 @@
 #        SMTP_HOST, SMTP_PORT, SMTP_USERNAME, SMTP_PASSWORD, SMTP_FROM, ALERT_EMAIL_TO,
 #        NVD_API_KEY (recommended: much faster NVD queries)
 #        DRATA_API_KEY (if the watchlist's drata: section is enabled)
+#        ANTHROPIC_API_KEY (if briefs: is enabled - Claude-written threat briefs)
 #      and under the Variables tab: SEC_USER_AGENT = "Your Company security@yourco.com"
 #      (SEC asks automated clients to identify themselves)
 #   3. The findings database is kept between runs with the Actions cache, so you
@@ -62,6 +63,7 @@ jobs:
         env:
           NVD_API_KEY: ${{ secrets.NVD_API_KEY }}
           DRATA_API_KEY: ${{ secrets.DRATA_API_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}   # threat briefs
           SEC_USER_AGENT: ${{ vars.SEC_USER_AGENT }}   # e.g. "Acme Corp security@acme.com"
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}   # enables GitHub PoC hunting
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
@@ -90,7 +92,10 @@ jobs:
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: vendor-risk-dashboard
-          path: report.html
+          path: |
+            report.html
+            briefs/
+          if-no-files-found: ignore
           retention-days: 30
 
       - name: Prepare Pages site

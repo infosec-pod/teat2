@@ -66,6 +66,16 @@ def _lines_for(alert: Alert) -> list[str]:
             out.append(f"    Also reported by {len(cov)} more source(s): {', '.join(names[:6])}"
                        + ("…" if len(names) > 6 else ""))
     out.append(f"    {f.get('url', '')}")
+    b = d.get("brief")
+    if b:
+        out.append(f"    ── Threat to {b.get('org', 'us')}: {b['threat_level'].upper()} (confidence {b['confidence']})")
+        out.append(f"    {b['bottom_line']}")
+        acts = sorted(b.get("recommended_actions") or [],
+                      key=lambda a: ["immediate", "this_week", "routine"].index(a.get("urgency", "routine")))
+        for a in acts[:3]:
+            out.append(f"      • [{a['urgency'].replace('_', ' ')}] {a['action']} ({a['owner']})")
+        if b.get("file"):
+            out.append(f"    Full brief: {b['file']}")
     return out
 
 

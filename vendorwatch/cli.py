@@ -12,13 +12,15 @@ from __future__ import annotations
 
 import argparse
 import logging
+import os
 import re
 import shutil
 import sys
 import time
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
-from . import __version__, drata, notify, report
+from . import __version__, briefs, drata, notify, report
 from .config import load_config
 from .scanner import Scanner, check_cve
 from .scoring import PRIORITY_LABEL
@@ -67,6 +69,7 @@ def _scan_once(args, cfg, store) -> int:
         print(f"  ! {e}", file=sys.stderr)
 
     alerts = res.alerts
+    _run_briefs(cfg, store, alerts)
     if res.first_run and not args.notify_baseline:
         print(f"\nFirst run: baseline of {len(alerts)} alert-worthy finding(s) recorded."
               " Showing them here; channels get only what's new from now on (use --notify-baseline to send).")
@@ -84,6 +87,65 @@ def _scan_once(args, cfg, store) -> int:
     out.write_text(report.build(cfg, store))
     print(f"Dashboard: {out.resolve()}")
     return 2 if any(a.finding["priority"] == "P1" for a in alerts) and args.fail_on_p1 else 0
+
+
+def _have_claude_credentials() -> bool:
+    return any(os.environ.get(k) for k in ("ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN", "ANTHROPIC_PROFILE")) or \
+        Path(os.path.expanduser("~/.config/anthropic")).exists()
+
+
+def _run_briefs(cfg, store, alerts) -> None:
+    """Write a Claude threat brief for each alert (and any recent alert-worthy finding still without one)."""
+    if not (cfg.briefs or {}).get("enabled"):
+        return
+    if not _have_claude_credentials():
+        print("  ! briefs.enabled is true but ANTHROPIC_API_KEY isn't set - skipping threat briefs", file=sys.stderr)
+        return
+    threshold = PRIORITY_RANK.get(cfg.settings.alert_min_priority, 2)
+    cands = {a.finding["key"]: a.finding for a in alerts}
+    cutoff = (datetime.now(timezone.utc) - timedelta(days=14)).isoformat()
+    for f in store.findings(status="open"):
+        if (f["key"] not in cands and PRIORITY_RANK[f["priority"]] <= threshold
+                and not f["data"].get("brief") and f["first_seen"] >= cutoff and cfg.asset(f["asset_id"])):
+            cands[f["key"]] = f
+    if not cands:
+        return
+    done, errors = briefs.brief_findings(cfg, store, list(cands.values()))
+    print(f"Threat briefs written: {done}")
+    for e in errors:
+        print(f"  ! {e}", file=sys.stderr)
+    for a in alerts:
+        a.finding = store.get(a.finding["key"]) or a.finding
+
+
+def cmd_brief(args) -> int:
+    cfg, store = _load(args)
+    if not (cfg.briefs or {}).get("enabled"):
+        print("Threat briefs are off. Set `briefs: {enabled: true}` in the watchlist.")
+        return 1
+    if args.all_open:
+        threshold = PRIORITY_RANK[args.min.upper()]
+        targets = [f for f in store.findings(status="open") if PRIORITY_RANK[f["priority"]] <= threshold
+                   and cfg.asset(f["asset_id"])]
+    else:
+        key = args.key
+        targets = [f for f in store.findings() if f["key"] == key or f["key"].endswith(":" + key)]
+    if not targets:
+        print("No matching findings.")
+        return 1
+    cfg.briefs["max_per_run"] = max(len(targets), int(cfg.briefs.get("max_per_run", 10))) if not args.all_open \
+        else int(cfg.briefs.get("max_per_run", 10))
+    done, errors = briefs.brief_findings(cfg, store, targets, force=args.force)
+    for e in errors:
+        print(f"  ! {e}", file=sys.stderr)
+    org, _ = briefs.org_context(cfg)
+    for f in targets:
+        f = store.get(f["key"])
+        b = f["data"].get("brief")
+        if b:
+            print(briefs.to_markdown(b, f, cfg.asset(f["asset_id"]), org))
+    print(f"{done} brief(s) written.")
+    return 0 if done or not errors else 1
 
 
 def cmd_scan(args) -> int:
@@ -232,6 +294,13 @@ def build_parser() -> argparse.ArgumentParser:
     s = sub.add_parser("drata", help="preview how your Drata vendor inventory maps onto the watchlist")
     s.add_argument("--cached", action="store_true", help="use the inventory cached by the last scan")
     s.set_defaults(fn=cmd_drata)
+
+    s = sub.add_parser("brief", help="write a Claude threat brief for a finding (or all open ones)")
+    s.add_argument("key", nargs="?", help="finding key, or a CVE id")
+    s.add_argument("--all-open", action="store_true", help="brief every open finding at --min or above")
+    s.add_argument("--min", default="P2", choices=["P1", "P2", "P3", "p1", "p2", "p3"])
+    s.add_argument("--force", action="store_true", help="re-write existing briefs")
+    s.set_defaults(fn=cmd_brief)
 
     s = sub.add_parser("report", help="write the HTML dashboard")
     s.add_argument("--out")

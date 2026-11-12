@@ -30,6 +30,7 @@ Alerts go to the console, Slack, Teams, email or any webhook. A self-contained H
 | **GitHub** | PoC repos for CVEs that affect you | `GITHUB_TOKEN` |
 | **Ransomware leak sites** (via ransomware.live) | Vendor named as a victim by a ransomware group, often days or weeks before any news | No |
 | **SEC EDGAR 8-Ks** | Item 1.05 material cybersecurity incident disclosures (and cyber-related 8.01s) from public vendors | No |
+| **Claude** (threat briefs) | Researches each alert and assesses the threat to your organisation | `ANTHROPIC_API_KEY` |
 | **Google News** | Exploitation, zero-day, breach, ransomware and outage coverage for each vendor | No |
 | **Vendor PSIRT feeds** | e.g. Fortinet and Palo Alto advisory RSS | No |
 | **Security news RSS** | BleepingComputer, The Hacker News, SecurityWeek… (any RSS/Atom) | No |
@@ -73,6 +74,32 @@ For vendors you don't run software from, the strongest signals are:
     domains: [salesforce.com]   # leak-site matching
     sec_cik: "1108524"          # SEC 8-K monitoring (find it on sec.gov/edgar/search)
 ```
+
+### Threat briefs (Claude)
+
+Every alert can get a dedicated brief that evaluates **what the event means for your organisation**, not just what happened. Claude Opus 5.5 does it in two steps:
+
+1. **Research:** Claude reads the sources with web search and web fetch, separating confirmed facts from claims.
+2. **Brief:** Claude writes a structured brief using your `organization:` profile and the vendor's `usage:` (what you use it for and what data it holds; Drata fills this in).
+
+Each brief contains: headline, **threat level to you** (critical → informational) with confidence, bottom line, what happened, relevance to you, potential impact, recommended actions (with urgency and owner), questions to send the vendor, open questions, regulatory considerations and sources. Briefs appear in the alert digest (threat level, bottom line, top three actions), in the dashboard, and as Markdown files under `briefs/<vendor>/`.
+
+```yaml
+organization:
+  name: SIAA
+  description: What you do and what data you hold.
+  data_handled: [client PII, ...]
+  regulations: [GLBA Safeguards Rule, ...]
+briefs:
+  enabled: true          # needs ANTHROPIC_API_KEY
+  max_per_run: 10        # cost cap
+```
+
+- **Cost:** about $0.20–0.40 per brief. Briefs are cached and only rewritten when a finding escalates. Findings over `max_per_run` are briefed on later runs.
+- **On demand:** `vendorwatch brief CVE-2024-21762`, `vendorwatch brief --all-open --min P2`, add `--force` to rewrite.
+- **Without a vendor's `usage`,** the brief says your exposure is unknown and lists finding it out as an open question; it never guesses.
+- **Public dashboards:** briefs describe your exposure. If the dashboard goes to a public Pages site, set `briefs.in_dashboard: false`; briefs then go only to alert channels and the private run artifacts.
+- Briefs are AI-generated; verify before acting.
 
 ### Drata vendor inventory sync
 

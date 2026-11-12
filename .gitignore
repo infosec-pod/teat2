@@ -8,4 +8,5 @@ dist/
 # local state & output
 data/
 report.html
+briefs/
 .env

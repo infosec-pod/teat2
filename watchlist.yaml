@@ -182,6 +182,44 @@ assets:
   #   criticality: high
   #   keywords: [Confluence]
 
+# Who the threat briefs are written for
+# ---------------------------------------------------------------------------
+# DRAFT - review and correct. Claude uses this to judge what a vendor incident
+# means for SIAA specifically, so accuracy here directly drives brief quality.
+organization:
+  name: SIAA
+  description: >
+    SIAA (Strategic Insurance Agency Alliance) is a national alliance of independent
+    property & casualty insurance agencies. It provides member agencies with carrier
+    access, business services and technology, and handles agency, carrier and policy
+    data on their behalf.
+  data_handled:
+    - member agency business, contract and financial data
+    - insurance client PII (names, contact details, policy and claims information)
+    - commission and carrier data
+    - employee data
+  regulations:
+    - GLBA Safeguards Rule (customer information security)
+    - state insurance data security laws based on the NAIC Insurance Data Security Model Law
+    - NYDFS 23 NYCRR 500 (if licensed in New York)
+    - state data breach notification laws
+  notes: Confirm the list above with Legal/Compliance.
+
+# Claude-written threat brief for each alert
+# ---------------------------------------------------------------------------
+# Needs ANTHROPIC_API_KEY (GitHub secret). Roughly $0.20-0.40 per brief.
+# Each vendor's `usage:` (how SIAA uses it / what data it shares) sharpens the
+# briefs; Drata fills it from "services provided" and "data stored".
+briefs:
+  enabled: true
+  model: claude-opus-5-5
+  research: true            # let Claude read the sources with web search / fetch first
+  max_searches: 5           # per brief
+  max_per_run: 10           # cost cap; the rest are briefed on later runs
+  write_markdown: true      # also save each brief as briefs/<vendor>/<date>-<title>.md
+  dir: briefs
+  in_dashboard: true        # set false if the dashboard is published to a PUBLIC GitHub Pages site
+
 # Drata vendor inventory sync
 # ---------------------------------------------------------------------------
 # Drata decides WHICH vendors are monitored and HOW critical they are:

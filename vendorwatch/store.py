@@ -29,6 +29,7 @@ CREATE TABLE IF NOT EXISTS score_history (
 """
 
 PRIORITY_RANK = {"P1": 1, "P2": 2, "P3": 3, "P4": 4}
+PRESERVED_DATA_KEYS = ("brief", "coverage")
 
 
 def now_iso() -> str:
@@ -64,7 +65,13 @@ class Store:
         """Insert/update a finding. Returns (change, previous) where change is new|escalated|updated|same."""
         prev = self.get(f["key"])
         ts = now_iso()
-        data = json.dumps(f.get("data", {}), default=str)
+        new_data = dict(f.get("data", {}))
+        if prev:
+            # sources rebuild a finding's data on every scan; keep what was added to it later
+            for k in PRESERVED_DATA_KEYS:
+                if k in prev["data"] and k not in new_data:
+                    new_data[k] = prev["data"][k]
+        data = json.dumps(new_data, default=str)
         if prev is None:
             self.db.execute(
                 "INSERT INTO findings(key,asset_id,type,priority,title,url,published,first_seen,last_seen,data)"
@@ -85,6 +92,11 @@ class Store:
         if f["priority"] != prev["priority"]:
             return "updated", prev
         return "same", prev
+
+    def update_data(self, key: str, data: dict) -> None:
+        """Replace a finding's data blob without touching priority / timestamps (e.g. to attach a brief)."""
+        self.db.execute("UPDATE findings SET data=? WHERE key=?", (json.dumps(data, default=str), key))
+        self.db.commit()
 
     def mark_notified(self, key: str, priority: str) -> None:
         self.db.execute("UPDATE findings SET notified_priority=? WHERE key=?", (priority, key))

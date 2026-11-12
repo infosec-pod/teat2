@@ -91,7 +91,7 @@ settings: {db_path: ":memory:"}
     assert set(names) == {"FortiGate", "Zapier", "Gusto"}
     assert names["Zapier"].criticality == "high"
     g = names["Gusto"]
-    assert g.domains == ["gusto.com"] and g.keywords == ["Gusto"] and g.owner == "hr@x.com" and "Payroll" in g.notes
+    assert g.domains == ["gusto.com"] and g.keywords == ["Gusto"] and g.owner == "hr@x.com" and "Payroll" in g.usage
 
 
 class _Resp:

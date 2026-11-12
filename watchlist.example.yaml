@@ -68,6 +68,17 @@ assets:
     sec_ticker: OKTA
     sec_cik: "1660134"
 
+# Optional: Claude-written threat brief per alert, evaluating the threat to YOUR organisation
+# organization:
+#   name: Acme
+#   description: What the organisation does and what data it holds.
+#   data_handled: [customer PII, payment data]
+#   regulations: [GLBA, state breach notification laws]
+# briefs:
+#   enabled: true               # needs ANTHROPIC_API_KEY
+#   max_per_run: 10
+# Per asset, `usage: "what we use it for / what data it holds"` sharpens the briefs.
+
 # Optional: let your Drata vendor inventory decide which vendors are monitored
 # drata:
 #   enabled: true

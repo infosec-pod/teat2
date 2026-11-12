@@ -29,7 +29,11 @@ main{max-width:1200px;margin:auto;padding:8px 16px 40px}
 .controls input{flex:1;min-width:180px}
 .f{background:var(--card);border:1px solid var(--line);border-radius:8px;padding:10px 12px;margin:8px 0}
 .f a{color:inherit}.f .t{font-weight:600}.f .meta{font-size:12px;color:var(--mute);margin-top:4px}
-.f .why{font-size:13px;margin-top:4px}.f details{margin-top:4px;font-size:13px}
+.f .why{font-size:13px;margin-top:4px}
+.brief{margin-top:8px;padding:8px 10px;border-left:3px solid var(--ink);background:var(--bg);border-radius:4px;font-size:13px}
+.brief p{margin:4px 0}.brief h4{margin:10px 0 4px;font-size:13px}.brief ul{margin:4px 0;padding-left:18px}
+.brief table{border-collapse:collapse;width:100%}.brief td{border-top:1px solid var(--line);padding:3px 6px;vertical-align:top}
+.brief td:first-child{white-space:nowrap;color:var(--mute)}.f details{margin-top:4px;font-size:13px}
 """
 
 JS = """
@@ -54,11 +58,25 @@ function row(f){const d=f.data||{},imp=d.impact||{};let tags=[];
  const det=d.description||d.summary?`<details><summary>details</summary><p>${esc(d.description||d.summary)}</p>${
   (d.patch_refs||[]).slice(0,3).map(u=>`<div><a href="${esc(u)}" target=_blank rel=noopener>${esc(u)}</a></div>`).join('')}${
   (d.github_pocs||[]).map(g=>`<div>PoC: <a href="${esc(g.url)}" target=_blank rel=noopener>${esc(g.name)}</a> ★${g.stars}</div>`).join('')}</details>`:'';
+ const b=d.brief;let bh='';
+ if(b){const lv={critical:'P1',high:'P2',medium:'P3',low:'P4',informational:'P4'}[b.threat_level]||'P3';
+  tags.unshift(`<span class="pill ${lv}">threat to ${esc(b.org||'us')}: ${esc(b.threat_level)}</span>`);
+  const li=a=>a&&a.length?'<ul>'+a.map(x=>`<li>${esc(x)}</li>`).join('')+'</ul>':'';
+  const U={immediate:0,this_week:1,routine:2};const acts=(b.recommended_actions||[]).slice().sort((x,y)=>(U[x.urgency]??3)-(U[y.urgency]??3)).map(a=>`<tr><td>${esc((a.urgency||'').replace('_',' '))}</td><td>${esc(a.action)}</td><td>${esc(a.owner)}</td></tr>`).join('');
+  bh=`<div class="brief"><b>${esc(b.headline)}</b><p>${esc(b.bottom_line)}</p><details><summary>Threat brief (${esc(b.confidence)} confidence)</summary>
+  <h4>What happened</h4><p>${esc(b.what_happened)}</p><h4>Relevance to ${esc(b.org||'us')}</h4><p>${esc(b.relevance)}</p>
+  ${b.potential_impacts&&b.potential_impacts.length?'<h4>Potential impact</h4>'+li(b.potential_impacts):''}
+  ${acts?'<h4>Recommended actions</h4><table>'+acts+'</table>':''}
+  ${b.vendor_questions&&b.vendor_questions.length?'<h4>Questions for the vendor</h4>'+li(b.vendor_questions):''}
+  ${b.unknowns&&b.unknowns.length?'<h4>Open questions</h4>'+li(b.unknowns):''}
+  ${b.regulatory_notes?'<h4>Regulatory considerations</h4><p>'+esc(b.regulatory_notes)+'</p>':''}
+  ${(b.sources||[]).length?'<h4>Sources</h4><ul>'+b.sources.map(x=>`<li><a href="${esc(x.url)}" target=_blank rel=noopener>${esc(x.title||x.url)}</a></li>`).join('')+'</ul>':''}
+  <p class="mute">AI-generated ${esc((b.generated_at||'').slice(0,16).replace('T',' '))} UTC by ${esc(b.model||'')} - verify before acting.</p></details></div>`}
  const covh=cov.length?`<details><summary>${cov.length} more report${cov.length>1?'s':''} of this story</summary>${
   cov.map(c=>`<div><a href="${esc(c.url)}" target=_blank rel=noopener>${esc(c.title)}</a></div>`).join('')}</details>`:'';
  return `<div class="f"><span class="pill ${f.priority}">${f.priority}</span> <span class="t"><a href="${esc(f.url)}" target=_blank rel=noopener>${esc(f.title)}</a></span>
  <div class="meta">${esc(f.asset_name)} · ${esc(f.type)} · ${esc((f.published||f.first_seen||'').slice(0,10))} · <code>${esc(f.key)}</code></div>
- <div>${tags.join('')}</div>${why}${det}${covh}</div>`}
+ <div>${tags.join('')}</div>${why}${bh}${det}${covh}</div>`}
 function render(){const s=q.value.toLowerCase();const rows=F.filter(f=>(!asset||f.asset_id===asset)&&(!p.value||f.priority<=p.value)
  &&(!t.value||f.type===t.value)&&(!st.value||f.status===st.value)&&(!s||JSON.stringify(f).toLowerCase().includes(s)));
  list.innerHTML=rows.slice(0,500).map(row).join('')||'<p class="mute">Nothing matches.</p>';
@@ -96,6 +114,8 @@ def build(cfg: Config, store: Store) -> str:
         )
         for f in fs:
             f["asset_name"] = names.get(f["asset_id"], f["asset_id"])
+            if not (cfg.briefs or {}).get("in_dashboard", True):
+                f["data"].pop("brief", None)  # e.g. when the dashboard is published to a public page
             all_f.append(f)
 
     data = json.dumps(all_f, default=str).replace("</", "<\\/")

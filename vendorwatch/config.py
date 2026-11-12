@@ -52,6 +52,7 @@ class Asset:
     sec_cik: str = ""                # or the SEC CIK number directly
     owner: str = ""
     notes: str = ""
+    usage: str = ""                  # how YOUR org uses this vendor and what data it shares (for threat briefs)
 
     @property
     def id(self) -> str:
@@ -112,6 +113,8 @@ class Config:
     notify: dict[str, Any]
     path: str = ""
     drata: dict[str, Any] = field(default_factory=dict)
+    organization: dict[str, Any] = field(default_factory=dict)
+    briefs: dict[str, Any] = field(default_factory=dict)
 
     def asset(self, asset_id: str) -> Asset | None:
         for a in self.assets:
@@ -153,6 +156,7 @@ def load_config(path: str | os.PathLike) -> Config:
                 sec_cik=str(a.get("sec_cik", "") or ""),
                 owner=str(a.get("owner", "")),
                 notes=str(a.get("notes", "")),
+                usage=str(a.get("usage", "") or ""),
             )
         )
     ids = [a.id for a in assets]
@@ -183,4 +187,5 @@ def load_config(path: str | os.PathLike) -> Config:
     drata = dict(raw.get("drata") or {})
     if drata.get("enabled") and not drata.get("api_key"):
         drata["api_key"] = os.environ.get("DRATA_API_KEY", "")
-    return Config(assets=assets, settings=settings, notify=raw.get("notify") or {}, path=str(path), drata=drata)
+    return Config(assets=assets, settings=settings, notify=raw.get("notify") or {}, path=str(path), drata=drata,
+                  organization=dict(raw.get("organization") or {}), briefs=dict(raw.get("briefs") or {}))

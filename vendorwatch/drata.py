@@ -126,7 +126,7 @@ def to_asset(v: dict) -> Asset:
         domains=[dom] if dom else [],
         criticality=criticality_of(v),
         owner=owner,
-        notes=notes[:300],
+        usage=notes[:500],
     )
 
 
@@ -190,7 +190,7 @@ def merge(cfg: Config, vendors: list[dict]) -> tuple[Config, list[dict]]:
                 y,
                 domains=y.domains or base.domains,
                 owner=y.owner or base.owner,
-                notes=y.notes or base.notes,
+                usage=y.usage or base.usage,
                 criticality=_max_crit(base.criticality, used[id(y)].criticality) if id(y) in used and crit_from_drata
                 else (base.criticality if crit_from_drata else y.criticality),
             )
